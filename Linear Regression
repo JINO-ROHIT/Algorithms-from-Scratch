@@ -1,68 +1,60 @@
-#FDefining our own dataset
-def synthetic_data(w,b,num_examples):
-  x = tf.zeros((num_examples,w.shape[0]))
-  x += tf.random.normal(shape= x.shape)
-  y = tf.matmul(x, tf.reshape(w,(-1,1))) + b
-  #print(x.shape)
-  y += tf.random.normal(shape = y.shape, stddev = 0.01)
-  #print(y.shape)
-  y = tf.reshape(y, (-1,1))
-  #print(y.shape)
-  return x,y
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn import datasets
+from sklearn.model_selection import train_test_split
 
-true_w = tf.constant([2,-3.4])
-true_b = 4.2
-features, labels = synthetic_data(true_w,true_b, 1000)
-
-features[0],labels[0]
-plt.scatter(features[:,1].numpy(),labels.numpy())  #thde linear relation
-
-def data_iteration(batch_size, features, labels):
-  num_examples = len(features)
-  indices = list(range(num_examples))
-  random.shuffle(indices)
-
-  for i in range(0,num_examples,batch_size):
-    j = tf.constant(indices[i:min(i + batch_size, num_examples)])
-    yield tf.gather(features,j), tf.gather(labels,j)
+class LinearRegression:
+    def __init__(self, learning_rate = 0.01, n_iters = 10):
+        self.lr = learning_rate
+        self.n_iters = n_iters
+        self.weights = None
+        self.bias = None
     
-batch_size = 10
-for x,y in data_iteration(batch_size,features,labels):
-  print(x,y)
-  print('------------')
+    def fit(self, X, y):
+        rows, columns = X.shape
 
-#parameters initialization
-w = tf.Variable(tf.random.normal(shape= (2,1),mean = 0, stddev = 0.01),
-                trainable = True)
-b = tf.Variable(tf.zeros(1),trainable= True)
+        self.weights = np.zeros(columns)
+        self.bias = 0
 
-def linreg(x,w,b):
-  return tf.matmul(x,w) + b
-  
-def squared_loss(y_hat,y):
-  return (y_hat - tf.reshape(y, y_hat.shape)) **2 /2
+        for _ in range(self.n_iters):
+            y_predicted = np.dot(X,self.weights) + self.bias
 
-def sgd(params, grads, lr, batch_size):
-  for param , grad in zip(params,grads):
-    param.assign_sub(lr*grad / batch_size)
+            dw = 1/rows * np.dot(X.T,(y_predicted - y))
+            db = 1/rows * np.sum(y_predicted - y)
 
-lr = 0.03
-num_epochs = 3
-net = linreg
-loss = squared_loss
-
-for epoch in range(num_epochs):
-  for x,y in data_iteration(batch_size, features, labels):
-    with tf.GradientTape() as g:
-      l = loss(net(x,w,b), y)
-    dw, db = g.gradient(l, [w,b])
-    sgd([w,b] , [dw,db], lr, batch_size)
-  train_l = loss(net(features, w, b), labels)
-  print(f'epoch {epoch + 1}, loss {float(tf.reduce_mean(train_l)):f}')
-  
-  
-print(f'error in estimating w: {true_w - tf.reshape(w, true_w.shape)}')
-print(f'error in estimating b: {true_b - b}')
+            self.weights = self.weights - self.lr * dw
+            self.bias = self.bias - self.lr * db 
 
 
 
+    def predict(self, X):
+        y_approx = np.dot(X, self.weights) + self.bias
+        return y_approx
+
+if __name__ == '__main__':
+
+    def mse(true, pred):
+        return np.mean((true - pred) **2)
+
+    X, y = datasets.make_regression(
+        n_samples=100, n_features=1, noise=20, random_state=4
+    )
+
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=1234
+    )
+    
+    regressor = LinearRegression(learning_rate=0.01, n_iters=1000)
+    regressor.fit(X_train, y_train)
+    predictions = regressor.predict(X_test)
+
+    err = mse(y_test, predictions)
+    print("MSE:", err)
+
+    y_pred_line = regressor.predict(X)
+    cmap = plt.get_cmap("viridis")
+    fig = plt.figure(figsize=(8, 6))
+    m1 = plt.scatter(X_train, y_train, color=cmap(0.9), s=10)
+    m2 = plt.scatter(X_test, y_test, color=cmap(0.5), s=10)
+    plt.plot(X, y_pred_line, color="black", linewidth=2, label="Prediction")
+    plt.show()
